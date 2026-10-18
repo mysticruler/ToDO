@@ -1,0 +1,24 @@
+# ToolNest build checklist
+
+- [x] Inspect existing React/Vite app, routes, auth, theme, registry, shared UI, and To-Do flow
+- [x] Rebrand app, package, title, README, logo, and favicon to ToolNest
+- [x] Keep the central registry as the source for tiles, search, categories, and routes
+- [x] Add shared ToolLayout and helper utilities
+- [x] Add six new ToolNest tools
+  - [x] Word and Character Counter
+  - [x] Case Converter
+  - [x] JSON Formatter and Validator
+  - [x] Password Strength Checker
+  - [x] EMI / Loan Calculator
+  - [x] Percentage Calculator
+- [x] Add lazy-loaded routes and per-tool document metadata
+- [x] Run normal, empty, invalid, responsive, and keyboard-oriented checks
+- [x] Confirm To-Do, Login, and Profile routes remain available
+- [x] Run production build and dependency audit
+- [x] Add Velocity Rush canvas racing game
+  - [x] Three-lane player movement
+  - [x] Keyboard and touch controls
+  - [x] Traffic spawning and collision detection
+  - [x] Score, speed, distance, high score, pause, and restart
+  - [x] Responsive canvas rendering and synthesized collision/button sounds
+- [x] Improve To-Do task management with task filters, safe editing, validation, search resilience, sorting, and delete confirmation

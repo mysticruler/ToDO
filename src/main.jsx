@@ -1,4 +1,4 @@
-import React, { memo, useState, useEffect, useMemo } from "react";
+import React, { lazy, memo, Suspense, useCallback, useState, useEffect, useMemo } from "react";
 import { createRoot } from "react-dom/client";
 import {
   LayoutDashboard,
@@ -28,6 +28,32 @@ import {
 } from "lucide-react";
 import "./styles.css";
 import Profile from "./Profile.jsx";
+import Landing from "./Landing.jsx";
+import ProtectedRoute from "./ProtectedRoute.jsx";
+import CommandPalette from "./components/CommandPalette.jsx";
+import ToolNotFound from "./components/ToolNotFound.jsx";
+import {recordRecent,toolByRoute} from "./registry/tools.js";
+const Converter = lazy(() => import("./Converter.jsx"));
+const Password = lazy(() => import("./tools/password/Password.jsx"));
+const QR = lazy(() => import("./tools/qr/QR.jsx"));
+const Pomodoro = lazy(() => import("./tools/pomodoro/Pomodoro.jsx"));
+const ImageCompressor = lazy(() => import("./tools/image-compressor/ImageCompressor.jsx"));
+const Notes = lazy(() => import("./tools/notes/Notes.jsx"));
+const WordCounter = lazy(() => import("./tools/word-counter/WordCounter.jsx"));
+const CaseConverter = lazy(() => import("./tools/case-converter/CaseConverter.jsx"));
+const TextDiff = lazy(() => import("./tools/text-diff/TextDiff.jsx"));
+const LoremIpsum = lazy(() => import("./tools/lorem-ipsum/LoremIpsum.jsx"));
+const MarkdownEditor = lazy(() => import("./tools/markdown-editor/MarkdownEditor.jsx"));
+const FindReplace = lazy(() => import("./tools/find-replace/FindReplace.jsx"));
+const LineTools = lazy(() => import("./tools/line-tools/LineTools.jsx"));
+const SlugGenerator = lazy(() => import("./tools/slug-generator/SlugGenerator.jsx"));
+const TextToSpeech = lazy(() => import("./tools/text-to-speech/TextToSpeech.jsx"));
+const SpeechToText = lazy(() => import("./tools/speech-to-text/SpeechToText.jsx"));
+const JSONFormatter = lazy(() => import("./tools/json-formatter/JSONFormatter.jsx"));
+const PasswordStrength = lazy(() => import("./tools/password-strength/PasswordStrength.jsx"));
+const EMICalculator = lazy(() => import("./tools/emi-calculator/EMICalculator.jsx"));
+const PercentageCalculator = lazy(() => import("./tools/percentage-calculator/PercentageCalculator.jsx"));
+const VelocityRush = lazy(() => import("./tools/velocity-rush/VelocityRush.jsx"));
 
 const seedProjects = [
   { id: "p1", name: "Personal", color: "#9b8cff" },
@@ -106,7 +132,7 @@ function Login({ onLogin }) {
       <div className="login-card">
         <div className="login-brand">
           <span className="logo">✦</span>
-          <b>ToDO</b>
+          <b>ToolNest</b>
         </div>
         <p className="eyebrow">WELCOME BACK</p>
         <h1>
@@ -165,7 +191,7 @@ function Login({ onLogin }) {
     </div>
   );
 }
-function App() {
+function TodoApp({ initialView = "dashboard" }) {
   if (!sessionStorage.getItem("taskora_logged_in"))
     return (
       <Login
@@ -175,11 +201,9 @@ function App() {
         }}
       />
     );
-  const [tasks, setTasks] = useState(() => load("taskora_tasks", seedTasks)),
-    [projects, setProjects] = useState(() =>
-      load("taskora_projects", seedProjects),
-    ),
-    [view, setView] = useState("dashboard"),
+  const [tasks, setTasks] = useState(() => { const saved = load("taskora_tasks", seedTasks); return Array.isArray(saved) ? saved : seedTasks; }),
+    [projects, setProjects] = useState(() => { const saved = load("taskora_projects", seedProjects); return Array.isArray(saved) ? saved : seedProjects; }),
+    [view, setView] = useState(initialView),
     [query, setQuery] = useState(""),
     [modal, setModal] = useState(null),
     [sidebar, setSidebar] = useState(true),
@@ -218,6 +242,7 @@ function App() {
   };
   const filtered = useMemo(() => {
     let a = [...tasks];
+    if (view === "active") a = a.filter((t) => !t.completed);
     if (view === "today") a = a.filter((t) => t.due === today(0));
     if (view === "upcoming")
       a = a.filter((t) => t.due > today(0) && !t.completed);
@@ -229,7 +254,7 @@ function App() {
       a = a.filter((t) => t.projectId === view.split(":")[1]);
     if (query)
       a = a.filter((t) =>
-        (t.title + " " + t.description + " " + t.tags.join(" "))
+        (t.title + " " + (t.description || "") + " " + (t.tags || []).join(" "))
           .toLowerCase()
           .includes(query.toLowerCase()),
       );
@@ -242,10 +267,10 @@ function App() {
           : (x.due || "").localeCompare(y.due || ""),
     );
   }, [tasks, view, query, sort]);
-  const toggle = (id) =>
+  const toggle = useCallback((id) =>
     setTasks((ts) =>
       ts.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)),
-    );
+    ), []);
   const saveTask = (data) => {
     if (!data.title.trim()) return notify("Give your task a title first.");
     setTasks((ts) =>
@@ -265,11 +290,12 @@ function App() {
     setModal(null);
     notify(data.id ? "Task updated" : "Task added");
   };
-  const remove = (id) => {
+  const remove = useCallback((id) => {
+    if (!window.confirm("Delete this task? This cannot be undone.")) return;
     setTasks((ts) => ts.filter((t) => t.id !== id));
     setModal(null);
     notify("Task deleted");
-  };
+  }, []);
   const addProject = () => {
     let name = prompt("Project name");
     if (name?.trim()) {
@@ -293,6 +319,8 @@ function App() {
       ? "Good morning, Alex."
       : view === "all"
         ? "My tasks"
+        : view === "active"
+        ? "Active tasks"
         : view === "today"
           ? "Today's focus"
           : view === "upcoming"
@@ -309,7 +337,7 @@ function App() {
           <span className="logo">✦</span>
           {sidebar && (
             <>
-              <b>ToDO</b>
+              <b>ToolNest</b>
               <span className="beta">BETA</span>
             </>
           )}
@@ -325,7 +353,7 @@ function App() {
             icon={<Inbox />}
             text="My tasks"
             count={counts.all}
-            active={view === "all"}
+            active={view === "all" || view === "active"}
             onClick={() => setView("all")}
           />
           <Nav
@@ -425,7 +453,7 @@ function App() {
             <div className="page-head">
               <div>
                 <p className="eyebrow">
-                  {view === "all" ? "YOUR WORKSPACE" : "FOCUS VIEW"}
+                  {view === "all" || view === "active" ? "YOUR WORKSPACE" : "FOCUS VIEW"}
                 </p>
                 <h1>{title}</h1>
                 <p className="sub">
@@ -440,11 +468,11 @@ function App() {
                 <Plus size={18} /> Add task
               </button>
             </div>
-            <div className="toolbar">
-              <div className="filter-pill">
-                <SlidersHorizontal size={15} /> Filter
+            <div className="toolbar task-toolbar">
+              <div className="task-filters" role="tablist" aria-label="Task status filters">
+                {[['all','All'],['active','Active'],['completed','Completed']].map(([key,label]) => <button key={key} className={view === key ? "active" : ""} onClick={() => setView(key)} role="tab" aria-selected={view === key}>{label}<span>{key === 'all' ? tasks.length : key === 'active' ? tasks.filter(t => !t.completed).length : counts.completed}</span></button>)}
               </div>
-              <select value={sort} onChange={(e) => setSort(e.target.value)}>
+              <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort tasks">
                 <option value="due">Sort by due date</option>
                 <option value="priority">Sort by priority</option>
                 <option value="title">Sort by title</option>
@@ -690,137 +718,27 @@ const Task = memo(function Task({ t, project, onToggle, onEdit, onDelete, compac
   );
 });
 function TaskModal({ task, projects, onClose, onSave }) {
-  let [f, setF] = useState(
-    task || {
-      title: "",
-      description: "",
-      priority: "Medium",
-      projectId: projects[0]?.id,
-      due: today(0),
-      starred: false,
-      tags: [],
-      subtasks: [],
-    },
-  );
-  let [tag, setTag] = useState("");
-  let upd = (k, v) => setF((x) => ({ ...x, [k]: v }));
+  const [f, setF] = useState(task || { title: "", description: "", priority: "Medium", projectId: projects[0]?.id, due: "", completed: false, starred: false, tags: [], subtasks: [] });
+  const [tag, setTag] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const upd = (k, v) => setF((x) => ({ ...x, [k]: v }));
+  const submit = (event) => { event.preventDefault(); if (submitting) return; const title = f.title.trim(); if (!title) { setError("A task title is required."); return; } setError(""); setSubmitting(true); onSave({ ...f, title, description: f.description.trim() }); };
   return (
-    <div className="overlay">
-      <div className="modal">
-        <div className="modal-head">
-          <div>
-            <p className="eyebrow">{task ? "EDIT TASK" : "QUICK CAPTURE"}</p>
-            <h2>{task ? "Refine task" : "What needs doing?"}</h2>
-          </div>
-          <button onClick={onClose}>
-            <X />
-          </button>
-        </div>
-        <label>
-          Title
-          <input
-            autoFocus
-            value={f.title}
-            onChange={(e) => upd("title", e.target.value)}
-            placeholder="e.g. Prepare quarterly review"
-            onKeyDown={(e) => e.key === "Enter" && onSave(f)}
-          />
-        </label>
-        <label>
-          Description
-          <textarea
-            value={f.description}
-            onChange={(e) => upd("description", e.target.value)}
-            placeholder="Add a little more context..."
-          />
-        </label>
-        <div className="form-row">
-          <label>
-            Priority
-            <select
-              value={f.priority}
-              onChange={(e) => upd("priority", e.target.value)}
-            >
-              {["Low", "Medium", "High", "Urgent"].map((x) => (
-                <option key={x}>{x}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Due date
-            <input
-              type="date"
-              value={f.due || ""}
-              onChange={(e) => upd("due", e.target.value)}
-            />
-          </label>
-        </div>
-        <div className="form-row">
-          <label>
-            Project
-            <select
-              value={f.projectId || ""}
-              onChange={(e) => upd("projectId", e.target.value)}
-            >
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="check-label">
-            <input
-              type="checkbox"
-              checked={f.starred}
-              onChange={(e) => upd("starred", e.target.checked)}
-            />{" "}
-            Mark important
-          </label>
-        </div>
-        <label>
-          Tags
-          <div className="tag-input">
-            <input
-              value={tag}
-              onChange={(e) => setTag(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && tag.trim()) {
-                  upd("tags", [...(f.tags || []), tag.trim()]);
-                  setTag("");
-                }
-              }}
-              placeholder="Type a tag, press Enter"
-            />
-            {(f.tags || []).map((x) => (
-              <span key={x}>
-                {x}
-                <button
-                  onClick={() =>
-                    upd(
-                      "tags",
-                      f.tags.filter((t) => t !== x),
-                    )
-                  }
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        </label>
-        <div className="modal-foot">
-          <button className="secondary" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="primary" onClick={() => onSave(f)}>
-            {task ? "Save changes" : "Add task"} <Command size={14} />
-          </button>
-        </div>
-      </div>
-    </div>
+    <div className="overlay"><form className="modal" onSubmit={submit}>
+      <div className="modal-head"><div><p className="eyebrow">{task ? "EDIT TASK" : "QUICK CAPTURE"}</p><h2>{task ? "Refine task" : "What needs doing?"}</h2></div><button type="button" onClick={onClose} aria-label="Close task editor"><X /></button></div>
+      <label>Title<input autoFocus required value={f.title} onChange={(e) => { setError(""); upd("title", e.target.value); }} placeholder="e.g. Prepare quarterly review" /></label>
+      <label>Description<textarea value={f.description || ""} onChange={(e) => upd("description", e.target.value)} placeholder="Add a little more context..." /></label>
+      <div className="form-row"><label>Priority<select value={f.priority || "Medium"} onChange={(e) => upd("priority", e.target.value)}>{["Low", "Medium", "High", "Urgent"].map((x) => <option key={x}>{x}</option>)}</select></label><label>Due date<input type="date" value={f.due || ""} onChange={(e) => upd("due", e.target.value)} /></label></div>
+      <div className="form-row"><label>Project<select value={f.projectId || ""} onChange={(e) => upd("projectId", e.target.value)}><option value="">No project</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label><label className="check-label"><input type="checkbox" checked={Boolean(f.completed)} onChange={(e) => upd("completed", e.target.checked)} /> Completed</label></div>
+      <label className="check-label"><input type="checkbox" checked={Boolean(f.starred)} onChange={(e) => upd("starred", e.target.checked)} /> Mark important</label>
+      <label>Tags<div className="tag-input"><input value={tag} onChange={(e) => setTag(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (tag.trim() && !(f.tags || []).includes(tag.trim())) { upd("tags", [...(f.tags || []), tag.trim()]); setTag(""); } } }} placeholder="Type a tag, press Enter" />{(f.tags || []).map((x) => <span key={x}>{x}<button type="button" onClick={() => upd("tags", f.tags.filter((t) => t !== x))} aria-label={`Remove ${x}`}>×</button></span>)}</div></label>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <div className="modal-foot"><button type="button" className="secondary" onClick={onClose}>Cancel</button><button type="submit" className="primary" disabled={submitting}>{task ? "Save changes" : "Add task"} <Command size={14} /></button></div>
+    </form></div>
   );
 }
+
 function SettingsModal({ tasks, setTasks, onClose, onNotify }) {
   let exportData = () => {
     let a = document.createElement("a");
@@ -854,7 +772,7 @@ function SettingsModal({ tasks, setTasks, onClose, onNotify }) {
         <div className="setting">
           <div>
             <b>Data portability</b>
-            <p>Keep a local backup of your ToDO workspace.</p>
+            <p>Keep a local backup of your ToolNest workspace.</p>
           </div>
           <button className="secondary" onClick={exportData}>
             <Download size={15} /> Export JSON
@@ -882,4 +800,33 @@ function SettingsModal({ tasks, setTasks, onClose, onNotify }) {
     </div>
   );
 }
-createRoot(document.getElementById("root")).render(<App />);
+function RouterApp() {
+  const loggedIn = Boolean(sessionStorage.getItem("taskora_logged_in"));
+  const profile = (() => { try { return JSON.parse(localStorage.getItem("todo_profile")) || { displayName: "Mystic" }; } catch { return { displayName: "Mystic" }; } })();
+  const [route, setRoute] = useState(window.location.pathname + window.location.search);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const go = (target) => { const clean = target.split("?")[0]; if (clean !== "/" && clean !== "/login") recordRecent(clean); window.history.pushState({}, "", target); window.dispatchEvent(new PopStateEvent("popstate")); window.scrollTo(0, 0); };
+  useEffect(() => { const update = () => setRoute(window.location.pathname + window.location.search); addEventListener("popstate", update); return () => removeEventListener("popstate", update); }, []);
+  useEffect(() => { const key = (e) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPaletteOpen(true); } }; addEventListener("keydown", key); return () => removeEventListener("keydown", key); }, []);
+  useEffect(() => { const current = route.split("?")[0], tool = toolByRoute(current); document.title = tool ? `${tool.title} · ToolNest` : "ToolNest"; let meta = document.querySelector('meta[name="description"]'); if (!meta) { meta=document.createElement("meta"); meta.name="description"; document.head.appendChild(meta); } meta.content = tool?.description || "A calm collection of useful browser tools."; }, [route]);
+  useEffect(() => { const link = document.querySelector('link[rel="icon"]'); if (!link) return; const canvas=document.createElement("canvas");canvas.width=64;canvas.height=64;const ctx=canvas.getContext("2d");let angle=0;const draw=()=>{ctx.clearRect(0,0,64,64);ctx.fillStyle="#111426";ctx.beginPath();ctx.roundRect(0,0,64,64,18);ctx.fill();const g=ctx.createLinearGradient(7,7,57,57);g.addColorStop(0,"#b7adff");g.addColorStop(.5,"#6758d1");g.addColorStop(1,"#43d9b0");ctx.fillStyle=g;ctx.beginPath();ctx.roundRect(7,7,50,50,15);ctx.fill();ctx.save();ctx.translate(32,32);ctx.rotate(angle);ctx.fillStyle="#fff";ctx.beginPath();for(let i=0;i<8;i++){const r=i%2?7:20,a=-Math.PI/2+i*Math.PI/4;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r)}ctx.closePath();ctx.fill();ctx.restore();ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(32,32,3,0,Math.PI*2);ctx.fill();link.href=canvas.toDataURL("image/png");angle+=Math.PI/24};draw();const timer=setInterval(draw,80);return()=>clearInterval(timer)},[]);
+  const current = route.split("?")[0];
+  const fallback = <div className="tool-page"><div className="converter-card"><p className="sub">Loading tool...</p></div></div>;
+  const overlay = (page) => <><CommandPalette open={paletteOpen} onClose={()=>setPaletteOpen(false)} onNavigate={go}/>{page}</>;
+  if (current === "/login") { if (loggedIn) { window.location.replace("/"); return null; } const redirect = new URLSearchParams(window.location.search).get("redirect") || "/"; return overlay(<Login onLogin={() => { sessionStorage.setItem("taskora_logged_in", "1"); go(redirect); }} />); }
+  if (current === "/converter") return overlay(<Suspense fallback={fallback}><Converter onBack={() => go("/")} notify={() => {}} /></Suspense>);
+  if (["/password","/qr","/pomodoro","/image-compressor"].includes(current)) return overlay(<Suspense fallback={fallback}>{current === "/password" ? <Password onBack={() => go("/")} /> : current === "/qr" ? <QR onBack={() => go("/")} /> : current === "/pomodoro" ? <Pomodoro onBack={() => go("/")} /> : <ImageCompressor onBack={() => go("/")} />}</Suspense>);
+  const textTools = {"/word-counter":WordCounter,"/case-converter":CaseConverter,"/text-diff":TextDiff,"/lorem-ipsum":LoremIpsum,"/markdown-editor":MarkdownEditor,"/find-replace":FindReplace,"/line-tools":LineTools,"/slug-generator":SlugGenerator,"/text-to-speech":TextToSpeech,"/speech-to-text":SpeechToText ,"/json-formatter":JSONFormatter,"/password-strength":PasswordStrength,"/emi-calculator":EMICalculator,"/percentage-calculator":PercentageCalculator};
+  if (textTools[current]) { const Tool = textTools[current]; return overlay(<Suspense fallback={fallback}><Tool onBack={() => go("/")} /></Suspense>); }
+  if (current === "/velocity-rush") return overlay(<Suspense fallback={fallback}><VelocityRush onBack={() => go("/")} /></Suspense>);
+  if (current === "/todo" || current === "/profile") return overlay(<ProtectedRoute loggedIn={loggedIn} path={current}><TodoApp initialView={current === "/profile" ? "profile" : "dashboard"} /></ProtectedRoute>);
+  if (current === "/notes") return overlay(<ProtectedRoute loggedIn={loggedIn} path={current}><Suspense fallback={fallback}><Notes onBack={() => go("/")} /></Suspense></ProtectedRoute>);
+  const registered = toolByRoute(current); if (current !== "/" && registered) return overlay(<ToolNotFound onBack={() => go("/")} />); if (current !== "/") return overlay(<ToolNotFound onBack={() => go("/")} />);
+  return overlay(<Landing loggedIn={loggedIn} profile={profile} onNavigate={go} onLogout={() => { sessionStorage.removeItem("taskora_logged_in"); go("/"); }} />);
+}
+class AppErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  render() { return this.state.error ? <div className="tool-page"><div className="converter-card"><p className="eyebrow">APP ERROR</p><h1>Something went wrong</h1><p className="sub">{this.state.error.message}</p><button className="primary" onClick={() => location.reload()}>Reload app</button></div></div> : this.props.children; }
+}
+createRoot(document.getElementById("root")).render(<AppErrorBoundary><RouterApp /></AppErrorBoundary>);

@@ -1,0 +1,2 @@
+import React,{useRef} from "react";
+export default function FileDrop({onFiles,accept,multiple=false,children}){const ref=useRef();return <button type="button" className="dropzone" onClick={()=>ref.current?.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();onFiles(Array.from(e.dataTransfer.files))}}><input ref={ref} hidden type="file" accept={accept} multiple={multiple} onChange={e=>onFiles(Array.from(e.target.files||[]))}/>{children}</button>}
